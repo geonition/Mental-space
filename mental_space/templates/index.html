@@ -1,0 +1,275 @@
+<!doctype html>
+<!-- Conditional comment for mobile ie7 blogs.msdn.com/b/iemobile/ -->
+<!--[if IEMobile 7 ]>    <html class="no-js iem7" lang="en"> <![endif]-->
+<!--[if (gt IEMobile 7)|!(IEMobile)]><!--> <html class="no-js" lang="en"> <!--<![endif]-->
+
+<head>
+  <meta charset="utf-8">
+
+  <title></title>
+  <meta name="description" content="">
+
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+
+  <style>
+            html, body {
+                margin  : 0;
+                padding : 0;
+                height  : 100%;
+                width   : 100%;
+            }
+            #map {
+                width    : 100%;
+                position : relative;
+                height   : 100%;
+            }
+            #result {
+                position: absolute;
+                top: 20px;
+                background-color: white;
+            }
+            #menu {
+              position: absolute;
+              top: 0%;
+              height: 20px;
+              background-color: white;
+              z-index: 100;
+            }
+  </style>
+
+
+</head>
+
+<body onload="init()">
+  <div id="menu">
+    <a href="javascript:hide_list()">map</a>
+    <a href="javascript:show_list()">list</a>
+  </div>
+
+  <div id="map">
+  </div>
+
+  <div id="result">
+      <div id="close">
+          <a href="javascript:close()">X close window</a>
+          </div>
+      <div id="response"></div>
+  </div>
+
+    <script src="http://openlayers.org/api/OpenLayers.js"></script>
+
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script type="text/javascript">
+var map, layer, own_position;
+
+function setHTML(response) {
+    $('#response').html(response.responseText);
+    //$('#result').show();
+}
+
+function close() {
+    $('#result').hide();
+}
+
+function position_success(event) {
+  own_position = new OpenLayers.LonLat(
+    event.coords.longitude,
+    event.coords.latitude).transform(
+      new OpenLayers.Projection("EPSG:4326"), 
+      new OpenLayers.Projection("EPSG:900913")
+  );
+  map.setCenter(own_position, 15);
+}
+
+function position_fail(event) {
+    map.zoomToExtent(new OpenLayers.Bounds(
+        2766208.2801129,
+        8432480.4087891,
+        2784553.1668987,
+        8442121.0289803
+    ));
+}
+
+function count_order(feature) {
+  var distance = Math.abs(feature.geometry.x - own_position.lon + feature.geometry.y - own_position.lat);
+  feature.attributes['order'] = distance;
+}
+
+function sort_feature(a, b) {
+  return a.attributes.order - b.attributes.order;
+}
+
+var first_show = true;
+var result = [];
+
+function show_list() {
+  console.log("show list");
+  if(first_show) {
+    for(var i = 0; i < map.layers.length; i++) {
+      console.log(map.layers[i]);
+      if(map.layers[i].visibility) {
+        if(map.layers[i].features) {
+          for(var j = 0; j < map.layers[i].features.length; j++) {
+            result.push(map.layers[i].features[j]);
+          }
+        }
+      }
+    }
+    result.sort(sort_feature);
+    console.log(result);
+    //create the content
+    var content = "";
+    for(var k = 0; k < Math.min(result.length, 100); k++) {
+      content = content.concat(JSON.stringify(result[k].attributes));
+      content = content.concat('<br />');
+    }
+    $('#response').html(content);
+  }
+  $('#result').show();
+  first_show = false;
+}
+
+function hide_list() {
+  $('#result').hide();
+}
+
+function init(){
+  
+  hide_list();
+  
+    var mapOptions = {
+        controls: [
+            new OpenLayers.Control.TouchNavigation({
+                dragPanOptions: {
+                    enableKinetic: true
+                }
+            }),
+            new OpenLayers.Control.ZoomPanel()
+        ]
+    };
+    map = new OpenLayers.Map('map', mapOptions);
+    baselayer = new OpenLayers.Layer.OSM( "OSM Map");
+    var atp = new OpenLayers.Layer.Vector("Atmosphere positive", {
+                    strategies: [new OpenLayers.Strategy.BBOX()],
+                    protocol: new OpenLayers.Protocol.WFS({
+                        url:  "http://108.166.110.152:8080/geoserver/cite/wfs",
+                        version: "1.1.0",
+                        featureType: "ilmapiiripositpoint",
+                        geometryName: "the_geom"
+                    }),
+                    visibility: false,
+                    onFeatureInsert: function(event) {
+                      count_order(event);
+                    }
+                });
+    var atn = new OpenLayers.Layer.Vector("Atmosphere negative", {
+                    strategies: [new OpenLayers.Strategy.BBOX()],
+                    protocol: new OpenLayers.Protocol.WFS({
+                        url:  "http://108.166.110.152:8080/geoserver/cite/wfs",
+                        version: "1.1.0",
+                        featureType: "ilmapiirinegatpoint",
+                        geometryName: "the_geom"
+                    }),
+                    visibility: false,
+                    onFeatureInsert: function(event) {
+                      count_order(event);
+                    }
+                });
+    var aep = new OpenLayers.Layer.Vector("Aesthetics positive", {
+                    strategies: [new OpenLayers.Strategy.BBOX()],
+                    protocol: new OpenLayers.Protocol.WFS({
+                        url:  "http://108.166.110.152:8080/geoserver/cite/wfs",
+                        version: "1.1.0",
+                        featureType: "ilmepositpoint",
+                        geometryName: "the_geom"
+                    }),
+                    visibility: false,
+                    onFeatureInsert: function(event) {
+                      count_order(event);
+                    }
+                });
+    var aen = new OpenLayers.Layer.Vector("Aesthetics negative", {
+                    strategies: [new OpenLayers.Strategy.BBOX()],
+                    protocol: new OpenLayers.Protocol.WFS({
+                        url:  "http://108.166.110.152:8080/geoserver/cite/wfs",
+                        version: "1.1.0",
+                        featureType: "ilmenegatpoint",
+                        geometryName: "the_geom"
+                    }),
+                    visibility: false,
+                    onFeatureInsert: function(event) {
+                      count_order(event);
+                    }
+                });
+    var sp = new OpenLayers.Layer.Vector("Social positive", {
+                    strategies: [new OpenLayers.Strategy.BBOX()],
+                    protocol: new OpenLayers.Protocol.WFS({
+                        url:  "http://108.166.110.152:8080/geoserver/cite/wfs",
+                        version: "1.1.0",
+                        featureType: "sosiaalinenpositpoint",
+                        geometryName: "the_geom"
+                    }),
+                    visibility: false,
+                    onFeatureInsert: function(event) {
+                      count_order(event);
+                    }
+                });
+    var sn = new OpenLayers.Layer.Vector("Social negative", {
+                    strategies: [new OpenLayers.Strategy.BBOX()],
+                    protocol: new OpenLayers.Protocol.WFS({
+                        url:  "http://108.166.110.152:8080/geoserver/cite/wfs",
+                        version: "1.1.0",
+                        featureType: "sosiaalinennegatpoint",
+                        geometryName: "the_geom"
+                    }),
+                    visibility: false,
+                    onFeatureInsert: function(event) {
+                      count_order(event);
+                    }
+                });
+    var acp = new OpenLayers.Layer.Vector("Activity positive", {
+                    strategies: [new OpenLayers.Strategy.BBOX()],
+                    protocol: new OpenLayers.Protocol.WFS({
+                        url:  "http://108.166.110.152:8080/geoserver/cite/wfs",
+                        version: "1.1.0",
+                        featureType: "tekeminenpositpoint",
+                        geometryName: "the_geom"
+                    }),
+                    visibility: false,
+                    onFeatureInsert: function(event) {
+                      count_order(event);
+                    }
+                });
+    var acn = new OpenLayers.Layer.Vector("Activity positive", {
+                    strategies: [new OpenLayers.Strategy.BBOX()],
+                    protocol: new OpenLayers.Protocol.WFS({
+                        url:  "http://108.166.110.152:8080/geoserver/cite/wfs",
+                        version: "1.1.0",
+                        featureType: "tekeminennegatpoint",
+                        geometryName: "the_geom"
+                    }),
+                    visibility: false,
+                    onFeatureInsert: function(event) {
+                      count_order(event);
+                    }
+                });
+    map.addLayers([baselayer, atp, atn, aep, aen, sp, sn, acp, acn]);
+    
+    
+    map.addControl(new OpenLayers.Control.LayerSwitcher());
+    
+    navigator.geolocation.getCurrentPosition(position_success,
+                                             position_fail,
+                                             {
+                                              enableHighAccuracy: true,
+                                              maximumAge:60000,
+                                              timeout:20000
+                                              });
+
+}
+
+</script>
+</body>
+</html>
