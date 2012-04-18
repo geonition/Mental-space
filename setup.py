@@ -10,6 +10,7 @@ setup(
     include_package_data=True,
     package_data = {
         "mental_space": [
+            "templates/*"
         ],
     },
     zip_safe=False,
